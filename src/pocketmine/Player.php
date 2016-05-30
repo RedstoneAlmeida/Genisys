@@ -146,7 +146,6 @@ use pocketmine\network\protocol\TakeItemEntityPacket;
 use pocketmine\network\protocol\TextPacket;
 use pocketmine\network\protocol\UpdateAttributesPacket;
 use pocketmine\network\protocol\UpdateBlockPacket;
-use pocketmine\network\protocol\UseItemPacket;
 use pocketmine\network\SourceInterface;
 use pocketmine\permission\PermissibleBase;
 use pocketmine\permission\PermissionAttachment;
@@ -156,6 +155,8 @@ use pocketmine\tile\Sign;
 use pocketmine\tile\Spawnable;
 use pocketmine\tile\Tile;
 use pocketmine\utils\TextFormat;
+use pocketmine\utils\Config;
+use pocketmine\Server;
 use raklib\Binary;
 
 /**
@@ -254,7 +255,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 	protected $chunksPerTick;
 	protected $spawnThreshold;
 	/** @var null|Position */
-	protected $spawnPosition = null;
+	private $spawnPosition = null;
 
 	protected $inAirTicks = 0;
 	protected $startAirTicks = 5;
@@ -275,8 +276,8 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 	/** @var Vector3 */
 	public $fromPos = null;
 	private $portalTime = 0;
-	private $hasTransferred = false;
-	protected $shouldSendStatus = false;
+	private $hasTransfered = false;
+	private $shouldSendStatus = false;
 	/** @var  Position */
 	private $shouldResPos;
 
@@ -289,7 +290,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 	public $selectedLev = [];
 
 	/** @var Item[] */
-	protected $personalCreativeItems = [];
+	private $personalCreativeItems = [];
 
 	public function linkHookToPlayer(FishingHook $entity){
 		if($entity->isAlive()){
@@ -999,6 +1000,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 		}
 
 		$this->setAllowFlight($this->gamemode == 3 || $this->gamemode == 1);
+		$this->getPlayer()->setAllowFlight(Server::getInstance()->extendsapipl->get("fly"));
 
 		$this->server->onPlayerLogin($this);
 		$this->spawnToAll();
@@ -1113,7 +1115,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 	 * @return bool
 	 */
 	public function batchDataPacket(DataPacket $packet){
-		if($this->connected === false or $this->hasTransferred){
+		if($this->connected === false or $this->hasTransfered){
 			return false;
 		}
 
@@ -1143,7 +1145,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 	 * @return int|bool
 	 */
 	public function dataPacket(DataPacket $packet, $needACK = false){
-		if(!$this->connected or $this->hasTransferred){
+		if(!$this->connected or $this->hasTransfered){
 			return false;
 		}
 
@@ -1176,7 +1178,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 	 * @return bool|int
 	 */
 	public function directDataPacket(DataPacket $packet, $needACK = false){
-		if($this->connected === false or $this->hasTransferred){
+		if($this->connected === false or $this->hasTransfered){
 			return false;
 		}
 
@@ -2696,7 +2698,6 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 				$this->setDataFlag(self::DATA_FLAGS, self::DATA_FLAG_ACTION, false);
 				break;
 			case ProtocolInfo::USE_ITEM_PACKET:
-				/** @var UseItemPacket $pk */
 				$packet->decodeAdditional($this->protocol);
 				if($this->spawned === false or !$this->isAlive() or $this->blocked){
 					break;
@@ -3671,12 +3672,12 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 					if($packet->slot >= $this->inventory->getSize()){
 						break;
 					}
-					/*if($this->isCreative()){
+					if($this->isCreative()){
 						if(Item::getCreativeItemIndex($packet->item) !== -1){
 							$this->inventory->setItem($packet->slot, $packet->item);
 							$this->inventory->setHotbarSlotIndex($packet->slot, $packet->slot); //links $hotbar[$packet->slot] to $slots[$packet->slot]
 						}
-					}*/
+					}
 					$transaction = new BaseTransaction($this->inventory, $packet->slot, $this->inventory->getItem($packet->slot), $packet->item);
 				}elseif($packet->windowid === ContainerSetContentPacket::SPECIAL_ARMOR){ //Our armor
 					if($packet->slot >= 4){
@@ -3886,7 +3887,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 		return false;
 	}
 
-	public function sendPopup($message, $subtitle = ""){
+	public function sendPopup(string $message, string $subtitle = ""){
 		$ev = new PlayerTextPreSendEvent($this, $message, PlayerTextPreSendEvent::POPUP);
 		$this->server->getPluginManager()->callEvent($ev);
 		if(!$ev->isCancelled()){
@@ -3901,24 +3902,21 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 	}
 
 	/**
-	 * Note for plugin developers: Do NOT use this function anymore, it's deprecated
-	 * and only for legacy reasons there is a redirect to sendPopup()
-	 *
-	 * @deprecated
-	 *
-	 * @param $message
+	 * @param string $message
+	 * @param string $subtitle
 	 * @return bool
 	 */
-	public function sendTip($message){
-		if($this->protocol >= ProtocolInfo::CURRENT_PROTOCOL){
-			return $this->sendPopup($message);//fix for 0.14.2 +
-		}
+	public function sendTip(string $message, string $subtitle = ""){
+		if($this->protocol >= ProtocolInfo::CURRENT_PROTOCOL){ 
+		return $this->sendPopup($message);//fix for 0.14.2 +
+ 		}
 		$ev = new PlayerTextPreSendEvent($this, $message, PlayerTextPreSendEvent::TIP);
 		$this->server->getPluginManager()->callEvent($ev);
 		if(!$ev->isCancelled()){
 			$pk = new TextPacket();
 			$pk->type = TextPacket::TYPE_TIP;
-			$pk->message = $message;
+			$pk->source = $message;
+			$pk->message = $subtitle;
 			$this->dataPacket($pk);
 			return true;
 		}
@@ -3928,7 +3926,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 	/**
 	 * @param string $tranferedTo
 	 */
-	/*public final function setTransferred($transferredTo = "") {
+	/*public final function setTransfered($transferedTo = "") {
 		if ($this->connected and !$this->closed) {
 			foreach ($this->usedChunks as $index => $d) {
 				Level::getXZ($index, $chunkX, $chunkZ);
@@ -3946,13 +3944,13 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 
 			$this->server->getPluginManager()->unsubscribeFromPermission(Server::BROADCAST_CHANNEL_USERS, $this);
 			$this->spawned = false;
-			$this->server->getLogger()->info($this->getServer()->getLanguage()->translateString("pocketmine.player.transferred", [
+			$this->server->getLogger()->info($this->getServer()->getLanguage()->translateString("pocketmine.player.transfered", [
 				TextFormat::AQUA . $this->getName() . TextFormat::WHITE,
 				$this->ip,
 				$this->port,
-				$transferredTo
+				$transferedTo
 			]));
-			$this->hasTransferred = true;
+			$this->hasTransfered = true;
 		}
 	}*/
 
@@ -4072,7 +4070,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 		parent::saveNBT();
 		if($this->level instanceof Level){
 			$this->namedtag->Level = new StringTag("Level", $this->level->getName());
-			if($this->spawnPosition instanceof Position and $this->spawnPosition->getLevel() instanceof Level and $this->spawnPosition->getLevel()->getProvider() !== NULL){
+			if($this->spawnPosition instanceof Position and $this->spawnPosition->getLevel() instanceof Level){
 				$this->namedtag["SpawnLevel"] = $this->spawnPosition->getLevel()->getName();
 				$this->namedtag["SpawnX"] = (int) $this->spawnPosition->x;
 				$this->namedtag["SpawnY"] = (int) $this->spawnPosition->y;
