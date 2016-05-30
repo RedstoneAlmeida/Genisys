@@ -1,4 +1,4 @@
-# Genisys (创世纪) - Advanced Minecraft: Pocket Edition Server
+# Genisys (创世纪) - Advanced Minecraft: Pocket Edition Server(PocketMine-MP)
 
 Chat on Gitter: [![Gitter](https://img.shields.io/gitter/room/iTXTech/Genisys.svg)](https://gitter.im/iTXTech/Genisys?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)  
 You can also join `#genisys` on freenode IRC.
