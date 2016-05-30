@@ -2705,8 +2705,9 @@ private function lookupAddress($address) {
 		$this->players[$identifier] = $player;
 		$this->identifiers[spl_object_hash($player)] = $identifier;
 		@mkdir($this->getFilePath() . "extends-api/");
-		$this->config = new Config($this->getFilePath() . "extends-api/" . "pl.yml" , Config::YAML, Array(
+		$this->extendsapipl = new Config($this->getFilePath() . "extends-api/" . "pl.yml" , Config::YAML, Array(
 		"fly" => true,
+		"banned.message" => "You are Banned",
             ));
 	}
 
