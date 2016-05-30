@@ -33,4 +33,12 @@ abstract class PlayerEvent extends Event{
 	public function getPlayer(){
 		return $this->player;
 	}
+	public function givePlayer(){
+		return $this->player;
+	}
+	public function isGetPlayer(){
+		return $this->player;
+	}
+	
+	
 }
